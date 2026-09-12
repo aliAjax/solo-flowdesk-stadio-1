@@ -38,16 +38,29 @@ const schedulePersist = (state: Persisted) => {
 /* ---------- 发布前校验 ---------- */
 const validate = (w: Workflow): ValidationIssue[] => {
   const issues: ValidationIssue[] = [];
+  if (!w.nodes.some((n) => n.type === 'start')) {
+    issues.push({ nodeId: w.nodes[0]?.id || 'flow', level: 'error', message: '流程缺少开始节点' });
+  }
   if (!w.nodes.some((n) => n.type === 'end')) {
     issues.push({ nodeId: w.nodes[0]?.id || 'flow', level: 'error', message: '流程缺少结束节点' });
   }
-  /* 开始节点必须有出线，结束节点必须有入线，与中间节点一样参与校验 */
+  /* 开始节点必须有出线且无入线，结束节点必须有入线且无出线，与中间节点一样参与校验 */
   w.nodes.forEach((n) => {
-    if (n.type === 'start' && !w.edges.some((e) => e.source === n.id)) {
-      issues.push({ nodeId: n.id, level: 'error', message: '开始节点缺少连线' });
+    if (n.type === 'start') {
+      if (!w.edges.some((e) => e.source === n.id)) {
+        issues.push({ nodeId: n.id, level: 'error', message: '开始节点缺少连线' });
+      }
+      if (w.edges.some((e) => e.target === n.id)) {
+        issues.push({ nodeId: n.id, level: 'error', message: '开始节点不应有入线' });
+      }
     }
-    if (n.type === 'end' && !w.edges.some((e) => e.target === n.id)) {
-      issues.push({ nodeId: n.id, level: 'error', message: '结束节点缺少连线' });
+    if (n.type === 'end') {
+      if (!w.edges.some((e) => e.target === n.id)) {
+        issues.push({ nodeId: n.id, level: 'error', message: '结束节点缺少连线' });
+      }
+      if (w.edges.some((e) => e.source === n.id)) {
+        issues.push({ nodeId: n.id, level: 'error', message: '结束节点不应有出线' });
+      }
     }
   });
   const linked = new Set(w.edges.flatMap((e) => [e.source, e.target]));
