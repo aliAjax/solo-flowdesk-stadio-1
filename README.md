@@ -32,7 +32,7 @@ npx playwright install chromium
 npm test
 ```
 
-Playwright 会自动启动 Vite（端口 4173），串行验证 Dashboard、编辑器审批配置、双区域校验、条件修复、多规则优先级、撤销重做、节点复制、表单必填、动态表单预览、发布门禁与发布联动、异常实例详情、业务域筛选、刷新持久化、版本比较和历史恢复。测试失败时会保留截图和 trace。
+Playwright 会自动启动 Vite（端口 4173），串行验证 Dashboard、编辑器审批配置、双区域校验、条件修复、多规则优先级、撤销重做、节点复制、表单必填、动态表单预览、发布门禁（含开始 / 结束节点连线检查）与发布联动、异常实例详情、业务域筛选、刷新持久化、版本比较（含连线端点差异）和历史恢复、提示自动消失。测试失败时会保留截图和 trace。
 
 > 在无法安装系统依赖的 Linux 沙箱中，可将浏览器运行库解压到项目根的 `.browser-libs/`（`usr/lib/aarch64-linux-gnu` 与 `lib/aarch64-linux-gnu` 结构），`playwright.config.ts` 会自动将其加入 `LD_LIBRARY_PATH` 并跳过宿主校验。
 

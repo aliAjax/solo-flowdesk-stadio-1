@@ -22,3 +22,8 @@
 .field-chip-meta select{flex:1;margin-top:0!important;height:30px;padding:4px 6px!important;font-size:10px}
 .field-chip-meta .req{display:flex;align-items:center;gap:5px;font-size:10px;color:#66706c;white-space:nowrap}
 .field-chip-meta .req input{width:auto!important;margin:0!important;padding:0}
+/* toast 可关闭 */
+.toast{display:flex;align-items:center;gap:12px}
+.toast-close{background:transparent;color:#cfe0da;padding:3px;border-radius:5px}
+.toast-close:hover{background:#ffffff22;filter:none}
+.toast-close svg{width:14px}

@@ -23,15 +23,16 @@ const loadPersisted = (): Persisted | null => {
 };
 
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
+const persistNow = (state: Persisted) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ workflows: state.workflows, instances: state.instances }));
+  } catch {
+    /* 存储不可用时静默降级为内存态 */
+  }
+};
 const schedulePersist = (state: Persisted) => {
   clearTimeout(persistTimer);
-  persistTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ workflows: state.workflows, instances: state.instances }));
-    } catch {
-      /* 存储不可用时静默降级为内存态 */
-    }
-  }, 250);
+  persistTimer = setTimeout(() => persistNow(state), 250);
 };
 
 /* ---------- 发布前校验 ---------- */
@@ -40,6 +41,15 @@ const validate = (w: Workflow): ValidationIssue[] => {
   if (!w.nodes.some((n) => n.type === 'end')) {
     issues.push({ nodeId: w.nodes[0]?.id || 'flow', level: 'error', message: '流程缺少结束节点' });
   }
+  /* 开始节点必须有出线，结束节点必须有入线，与中间节点一样参与校验 */
+  w.nodes.forEach((n) => {
+    if (n.type === 'start' && !w.edges.some((e) => e.source === n.id)) {
+      issues.push({ nodeId: n.id, level: 'error', message: '开始节点缺少连线' });
+    }
+    if (n.type === 'end' && !w.edges.some((e) => e.target === n.id)) {
+      issues.push({ nodeId: n.id, level: 'error', message: '结束节点缺少连线' });
+    }
+  });
   const linked = new Set(w.edges.flatMap((e) => [e.source, e.target]));
   w.nodes
     .filter((n) => n.type !== 'start' && n.type !== 'end' && !linked.has(n.id))
@@ -69,13 +79,20 @@ interface Snapshot {
 }
 const HISTORY_LIMIT = 50;
 
+/* toast 带唯一 key，相同文案连续触发时也会重新计时自动消失 */
+export interface Toast {
+  key: number;
+  text: string;
+}
+const makeToast = (text: string): Toast => ({ key: Date.now() + Math.random(), text });
+
 interface State {
   workflows: Workflow[];
   instances: typeof seedInstances;
   currentId: string;
   selectedNodeId: string | null;
   issues: ValidationIssue[];
-  toast: string;
+  toast: Toast | null;
   past: Snapshot[];
   future: Snapshot[];
   setCurrent: (id: string) => void;
@@ -116,7 +133,7 @@ export const useAppStore = create<State>((set, get) => ({
   currentId: persisted?.workflows?.[0]?.id ?? 'wf-1',
   selectedNodeId: null,
   issues: [],
-  toast: '',
+  toast: null,
   past: [],
   future: [],
 
@@ -153,7 +170,7 @@ export const useAppStore = create<State>((set, get) => ({
         ...pushHistory(s),
         workflows: withWorkflow(s, { nodes: [...w.nodes, copyNode] }),
         selectedNodeId: copyNode.id,
-        toast: '节点已复制',
+        toast: makeToast('节点已复制'),
       };
     }),
 
@@ -212,7 +229,7 @@ export const useAppStore = create<State>((set, get) => ({
             }
           : x,
       ),
-      toast: issues.length ? `发现 ${issues.length} 个问题` : '校验通过',
+      toast: makeToast(issues.length ? `发现 ${issues.length} 个问题` : '校验通过'),
     }));
     return issues;
   },
@@ -220,7 +237,7 @@ export const useAppStore = create<State>((set, get) => ({
   save: () =>
     set((s) => ({
       workflows: withWorkflow(s, { status: 'draft', updatedAt: '2026-07-11 16:30' }),
-      toast: '草稿已保存',
+      toast: makeToast('草稿已保存'),
     })),
 
   publish: () =>
@@ -243,7 +260,7 @@ export const useAppStore = create<State>((set, get) => ({
             },
           ],
         }),
-        toast: '流程发布成功',
+        toast: makeToast('流程发布成功'),
       };
     }),
 
@@ -297,12 +314,21 @@ export const useAppStore = create<State>((set, get) => ({
         workflows: withWorkflow(s, { status: 'draft', nodes: clone(old.nodes), edges: clone(old.edges) }),
         past: [],
         future: [],
-        toast: `已恢复 v${v} 为草稿`,
+        toast: makeToast(`已恢复 v${v} 为草稿`),
       };
     }),
 
-  clearToast: () => set({ toast: '' }),
+  clearToast: () => set({ toast: null }),
 }));
 
 /* 任意状态变化后持久化（防抖），保证刷新后数据仍在 */
 useAppStore.subscribe((s) => schedulePersist({ workflows: s.workflows, instances: s.instances }));
+
+/* 页面关闭 / 刷新前立即落盘，避免防抖窗口内丢失最后一次变更 */
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    clearTimeout(persistTimer);
+    const s = useAppStore.getState();
+    persistNow({ workflows: s.workflows, instances: s.instances });
+  });
+}
