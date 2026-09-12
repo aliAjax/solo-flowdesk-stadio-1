@@ -25,16 +25,24 @@ npm run dev
 
 ## 测试
 
-首次运行先安装 Chromium：
+干净检出后依次执行：
 
 ```bash
-npx playwright install chromium
+npm install
+npm run test:prepare   # 识别并补齐浏览器运行库
 npm test
 ```
 
-Playwright 会自动启动 Vite（端口 4173），串行验证 Dashboard、编辑器审批配置、双区域校验、条件修复、多规则优先级、撤销重做、节点复制、表单必填、动态表单预览、发布门禁（含开始 / 结束节点连线检查）与发布联动、异常实例详情、业务域筛选、刷新持久化、版本比较（含连线端点差异）和历史恢复、提示自动消失。测试失败时会保留截图和 trace。
+`npm run test:prepare`（`scripts/prepare-test-deps.sh`）会自动完成依赖准备：
 
-> 在无法安装系统依赖的 Linux 沙箱中，可将浏览器运行库解压到项目根的 `.browser-libs/`（`usr/lib/aarch64-linux-gnu` 与 `lib/aarch64-linux-gnu` 结构），`playwright.config.ts` 会自动将其加入 `LD_LIBRARY_PATH` 并跳过宿主校验。
+1. 检查 Playwright Chromium 是否已下载，缺失时自动执行 `npx playwright install chromium`；
+2. 用 `ldd` 核对浏览器所需的系统运行库（自动计入项目内 `.browser-libs/` 的补充）；
+3. 缺失时给出可执行的补齐方式：有 root / sudo 时用 `npx playwright install-deps chromium` 安装到系统；无 root 时自动从 Debian 源下载对应 `.deb` 解压到项目内 `.browser-libs/`（已 gitignore），`playwright.config.ts` 检测到该目录会自动加入 `LD_LIBRARY_PATH` 并跳过宿主校验；
+4. 复验全部就绪后退出。
+
+`npm test` 前会自动做一次快速检查（`pretest` 钩子）：运行库缺失时会列出具体缺失项与补齐命令并中止，按提示执行 `npm run test:prepare` 后即可运行。也可随时用 `bash scripts/prepare-test-deps.sh --check` 单独检查。
+
+Playwright 会自动启动 Vite（端口 4173），串行验证 Dashboard、编辑器审批配置、双区域校验、条件修复、多规则优先级、撤销重做、节点复制、表单必填、动态表单预览、发布门禁（含开始 / 结束节点连线检查与发布动作自身门禁）与发布联动、异常实例详情、业务域筛选、刷新持久化、版本比较（含连线端点差异）和历史恢复、提示自动消失。测试失败时会保留截图和 trace。
 
 ## 浏览器验证路径
 
