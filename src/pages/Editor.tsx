@@ -77,10 +77,8 @@ export function Editor() {
     store.updateNodes([...w.nodes, node]);
   };
 
-  const publish = () => {
-    const issues = store.runValidation();
-    if (!issues.length) store.publish();
-  };
+  /* 发布门禁在 store 的 publish 动作内部，这里直接调用即可 */
+  const publish = () => store.publish();
 
   return (
     <div className="editor-page">

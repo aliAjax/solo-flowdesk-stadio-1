@@ -140,6 +140,22 @@ const pushHistory = (s: State): Pick<State, 'past' | 'future'> => {
   };
 };
 
+/** 把校验结果写入 issues 并同步标红 / 标绿画布节点 */
+const markIssues = (s: State, workflowId: string, issues: ValidationIssue[]) => ({
+  issues,
+  workflows: s.workflows.map((x) =>
+    x.id === workflowId
+      ? {
+          ...x,
+          nodes: x.nodes.map((n) => ({
+            ...n,
+            data: { ...n.data, state: issues.some((i) => i.nodeId === n.id) ? ('invalid' as const) : ('valid' as const) },
+          })),
+        }
+      : x,
+  ),
+});
+
 export const useAppStore = create<State>((set, get) => ({
   workflows: persisted?.workflows ?? clone(seed),
   instances: persisted?.instances ?? clone(seedInstances),
@@ -230,18 +246,7 @@ export const useAppStore = create<State>((set, get) => ({
     const w = current(get());
     const issues = validate(w);
     set((s) => ({
-      issues,
-      workflows: s.workflows.map((x) =>
-        x.id === w.id
-          ? {
-              ...x,
-              nodes: x.nodes.map((n) => ({
-                ...n,
-                data: { ...n.data, state: issues.some((i) => i.nodeId === n.id) ? 'invalid' : 'valid' },
-              })),
-            }
-          : x,
-      ),
+      ...markIssues(s, w.id, issues),
       toast: makeToast(issues.length ? `发现 ${issues.length} 个问题` : '校验通过'),
     }));
     return issues;
@@ -253,10 +258,19 @@ export const useAppStore = create<State>((set, get) => ({
       toast: makeToast('草稿已保存'),
     })),
 
+  /* 发布动作自身把关：无论从哪里调用都重新校验，存在错误时保持草稿、版本不变 */
   publish: () =>
     set((s) => {
       const w = current(s);
+      const issues = validate(w);
+      if (issues.length) {
+        return {
+          ...markIssues(s, w.id, issues),
+          toast: makeToast(`发现 ${issues.length} 个问题，已阻止发布`),
+        };
+      }
       return {
+        issues: [],
         workflows: withWorkflow(s, {
           status: 'published',
           version: w.version + 1,
@@ -344,4 +358,9 @@ if (typeof window !== 'undefined') {
     const s = useAppStore.getState();
     persistNow({ workflows: s.workflows, instances: s.instances });
   });
+}
+
+/* 开发环境暴露 store，便于调试与端到端测试（生产构建会被 tree-shake） */
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  (window as any).__appStore = useAppStore;
 }
